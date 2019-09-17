@@ -1,0 +1,45 @@
+cls
+Write-Host '*************************************'
+Write-Host '*     Grab BIOS/Serials Remotely    *'
+Write-Host '*************************************'
+Write-Host
+
+ $global:adminCreds = $host.ui.PromptForCredential("Need credentials", "Please enter your user name and password.", "", "")
+    do
+    {
+        $ComputerName = Read-Host -Prompt 'Computer Name?'
+        cd C:\PSTools\
+        Ping -c 1 $ComputerName 
+        $a = new-object -comobject wscript.shell 
+        $intAnswer = $a.popup("Was the ping Successful?", ` 
+        0,"Ping Test",4) 
+    If ($intAnswer -eq 6) 
+    { 
+         cd C:\PSTools\
+        .\psexec.exe \\$ComputerName netsh advfirewall set allprofiles state off
+        .\psexec.exe \\$ComputerName -s powershell.exe Enable-PSRemoting -Force
+        # .\psexec.exe \\$ComputerName WMIC BIOS GET SERIALNUMBER
+        Invoke-command -ComputerName $ComputerName {gwmi win32_bios} -credential $global:adminCreds
+        winrm delete winrm/config/listener?address=*+transport=HTTP 
+        Stop-Service winrm
+        Set-Service -Name winrm -StartupType Disabled
+        Invoke-command -ComputerName $ComputerName {Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LocalAccountTokenFilterPolicy -Value 0 -Type DWord} -credential $global:adminCreds        
+        .\psexec.exe \\$ComputerName -s powershell Disable-PSRemoting -Force
+        Exit-PSSession
+        Write-Host
+        $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes","Check another machine?"
+        $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No","Quit?"
+        $choice = [System.Management.Automation.Host.ChoiceDescription[]] @($yes,$no)
+        [int]$default = 0
+        $userchoice = $host.ui.PromptforChoice("","Check another machine???",$choice,$default)
+    }
+    Else
+    {
+        $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes","Check another machine?"
+        $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No","Quit?"
+        $choice = [System.Management.Automation.Host.ChoiceDescription[]] @($yes,$no)
+        [int]$default = 0
+        $userchoice = $host.ui.PromptforChoice("","Check another machine???",$choice,$default)  
+    }
+    }
+    Until ($userchoice -eq 1)
